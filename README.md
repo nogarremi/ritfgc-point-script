@@ -1,0 +1,1 @@
+# ritfgc-point-script

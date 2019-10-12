@@ -15,9 +15,9 @@ last_saturday = str(current_time.date()
 def get_tour():
     base_url = "https://api.challonge.com/v1/" # The basis of getting results from challonge
     key = api_key # Secret
-	
+
     games = {132596:"sfv", 39782:"t7", 55777:"bbcf", 139550:"bbtag", 125058:"unist", 121822:'xrd', 129078:'dbfz'} # For translation of tournament game_ids from challonge to game names for the database
-    players = [] # Sets an empty array for players to reference later
+    players = {} # Sets an empty dictionary for players to reference later
     
     # Opens database connection
     conn = pymysql.connect(
@@ -32,7 +32,7 @@ def get_tour():
     
     # Parameters for getting the right tournaments
     payload = {'api_key':key, 'state':'ended', 'created_after':last_saturday, 'subdomain':'ritfgc'}
-	
+
     # Send a HTTP GET request to poll the Challonge API for all the tournaments within the timeframe
     r = requests.get(base_url + "tournaments.json", params=payload)
     # Check to make sure there is a successful response
@@ -44,13 +44,15 @@ def get_tour():
                 # The structure of the json is weird and tournament data is not at the root
                 # Set the data root as the variable
                 t = t['tournament']
-				
+
                 # Get all the current players from the database to remove the possibility for duplicates
+                # Now it puts the players into a dictionary to remove the possibility for diffrent capitalization
                 with conn.cursor() as cursor:
                     sql = 'SELECT player_Handle FROM players'
                     cursor.execute(sql)
                     for row in cursor:
-                        players.append(row['player_Handle'])
+                        players[row['player_Handle'].lower()] = row['player_Handle']
+                        
                 # Filter tournament results to ensure only the proper tournaments are being selected  
                 if 'rit fgc '+current_semester in t['name'].lower() and 'extra' not in t['name'].lower():
                     # Referencing the games dict to get the game name from the tournament game_id
@@ -61,10 +63,10 @@ def get_tour():
                     
                     # Empty dict to store participant name and final rank
                     parts = {}
-					
+
                     # Empty array of places to calculate points
                     places = []
-					
+
                     # Send an HTTP GET request to poll for all the participant for a tournament
                     x = requests.get(base_url + "tournaments/" + str(t['id']) + "/participants.json", params={'api_key':key})
                     # Check to make sure there is a successful response
@@ -74,7 +76,7 @@ def get_tour():
                             # The structure of the json is weird and tournament data is not at the root
                             # Set the data root as the variable
                             p = p['participant']
-							
+
                             # Fill in the empty array/dict
                             places.append(p['final_rank'])
                             parts.update({p['name']:p['final_rank']})
@@ -90,30 +92,33 @@ def get_tour():
                         # Pull the information from the dict to simplify using the info
                         p_Handle = part
                         final_rank = parts[part]
-						
+                        
                         # Get player points from the points dict using the player's final rank as a key
                         p_points = points[final_rank]
-						
+
                         with conn.cursor() as cursor:
+                            # Check to see if player already exists in the database 
+                            if p_Handle.lower() not in players:
+                                #Add player to the player dictionary
+                                players[p_Handle.lower()] = p_Handle
+                                # Add player handle into the database
+                                sql = "INSERT INTO players (player_Handle) VALUES (%s)"
+                                cursor.execute(sql, (players[p_Handle.lower()],))
+
                             # Check to see if the player already has points in the database
                             sql = "SELECT ranbat_score FROM results INNER JOIN semesters ON semesters.semester_ID = results.semester_ID INNER JOIN games ON games.game_ID = results.game_ID INNER JOIN players ON players.player_ID = results.player_ID WHERE semesters.semesterNum = %s AND games.game_Name = %s AND players.player_Handle = %s"
-                            cursor.execute(sql, (current_semester, g_Name, p_Handle,))
+                            cursor.execute(sql, (current_semester, g_Name, players[p_Handle.lower()],))
                             result = cursor.fetchone()
 
                             # Check the results for points
-                            if not result:
-                                # Check to see if player already exists in the database 
-                                if p_Handle not in players:
-                                    # Add player handle into the database
-                                    sql = "INSERT INTO players (player_Handle) VALUES (%s)"
-                                    cursor.execute(sql, (p_Handle,))
-                                # Add points into the database for player and game
-                                sql = "INSERT INTO results (semester_ID, player_ID, game_ID, ranbat_score) VALUES ((SELECT semester_ID FROM semesters WHERE semesterNum = %s), (SELECT player_ID FROM players WHERE player_Handle = %s), (SELECT game_ID FROM games WHERE game_Name = %s), %s)"
-                                cursor.execute(sql, (current_semester, p_Handle, g_Name, p_points))
-                            else:
+                            if result:
                                 # Add new points to existing point total for player
                                 sql = "UPDATE results SET ranbat_score = %s WHERE semester_ID = (SELECT semester_ID FROM semesters WHERE semesterNum = %s) AND player_ID = (SELECT player_ID FROM players WHERE player_Handle = %s) AND game_ID = (SELECT game_ID FROM games WHERE game_Name = %s)"
-                                cursor.execute(sql, (result['ranbat_score']+p_points, current_semester, p_Handle, g_Name))
+                                cursor.execute(sql, (result['ranbat_score']+p_points, current_semester, players[p_Handle.lower()], g_Name))
+                            else:
+                                # Add points into the database for player and game
+                                sql = "INSERT INTO results (semester_ID, player_ID, game_ID, ranbat_score) VALUES ((SELECT semester_ID FROM semesters WHERE semesterNum = %s), (SELECT player_ID FROM players WHERE player_Handle = %s), (SELECT game_ID FROM games WHERE game_Name = %s), %s)"
+                                cursor.execute(sql, (current_semester, players[p_Handle.lower()], g_Name, p_points))
         # Close the database connection
         finally:
             conn.close()
@@ -124,16 +129,16 @@ def get_tour():
 def calc_points(places):
     # Create a dictionary from the array
     points = dict.fromkeys(places)
-	
+
     # Dictionaries cannot contain duplicate keys
     # Store the unique values to have a way to loop
     places = list(points)
-	
+
     # Loop to set up a dictionary based on final placements
     for x in range(len(places)):
         # Points should be equal to 2 + the farther a player made it in the tournament
         points[places[x]] = 2 + x
-		
+
         # Quick check to give top 3 more points
         #    3rd = 4th + 2
         #    2nd = 3rd + 2

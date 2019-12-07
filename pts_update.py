@@ -16,7 +16,7 @@ def get_tour():
     base_url = "https://api.challonge.com/v1/" # The basis of getting results from challonge
     key = api_key # Secret
 
-    games = {132596:"sfv", 39782:"t7", 55777:"bbcf", 139550:"bbtag", 125058:"unist", 121822:'xrd', 129078:'dbfz'} # For translation of tournament game_ids from challonge to game names for the database
+    games = [] # Sets an empty list for games to reference later
     players = {} # Sets an empty dictionary for players to reference later
     
     # Opens database connection
@@ -39,6 +39,11 @@ def get_tour():
     if '200' in str(r.status_code):
         # Try because of database connection
         try:
+            with conn.cursor() as cursor:
+                sql = 'SELECT challonge_game_id FROM games'
+                cursor.execute(sql)
+                for row in cursor:
+                    games.append(row['challonge_game_id'])
             # Loop through all the tournaments
             for t in r.json():
                 # The structure of the json is weird and tournament data is not at the root
@@ -55,11 +60,11 @@ def get_tour():
                         
                 # Filter tournament results to ensure only the proper tournaments are being selected  
                 if 'rit fgc '+current_semester in t['name'].lower() and 'extra' not in t['name'].lower():
-                    # Referencing the games dict to get the game name from the tournament game_id
-                    if t['game_id'] in games.keys():
-                        g_Name = games.get(t['game_id'])
+                    # Referencing the games list to get make sure the game is in the database
+                    if t['game_id'] in games:
+                        challongeID = t['game_id']
                     else:
-                        break
+                        continue
                     
                     # Empty dict to store participant name and final rank
                     parts = {}
@@ -106,19 +111,19 @@ def get_tour():
                                 cursor.execute(sql, (players[p_Handle.lower()],))
 
                             # Check to see if the player already has points in the database
-                            sql = "SELECT ranbat_score FROM results INNER JOIN semesters ON semesters.semester_ID = results.semester_ID INNER JOIN games ON games.game_ID = results.game_ID INNER JOIN players ON players.player_ID = results.player_ID WHERE semesters.semesterNum = %s AND games.game_Name = %s AND players.player_Handle = %s"
-                            cursor.execute(sql, (current_semester, g_Name, players[p_Handle.lower()],))
+                            sql = "SELECT ranbat_score FROM results INNER JOIN semesters ON semesters.semester_ID = results.semester_ID INNER JOIN games ON games.game_ID = results.game_ID INNER JOIN players ON players.player_ID = results.player_ID WHERE semesters.semesterNum = %s AND games.challonge_game_id = %s AND players.player_Handle = %s"
+                            cursor.execute(sql, (current_semester, challongeID, players[p_Handle.lower()],))
                             result = cursor.fetchone()
 
                             # Check the results for points
                             if result:
                                 # Add new points to existing point total for player
-                                sql = "UPDATE results SET ranbat_score = %s WHERE semester_ID = (SELECT semester_ID FROM semesters WHERE semesterNum = %s) AND player_ID = (SELECT player_ID FROM players WHERE player_Handle = %s) AND game_ID = (SELECT game_ID FROM games WHERE game_Name = %s)"
-                                cursor.execute(sql, (result['ranbat_score']+p_points, current_semester, players[p_Handle.lower()], g_Name))
+                                sql = "UPDATE results SET ranbat_score = %s WHERE semester_ID = (SELECT semester_ID FROM semesters WHERE semesterNum = %s) AND player_ID = (SELECT player_ID FROM players WHERE player_Handle = %s) AND game_ID = (SELECT game_ID FROM games WHERE challonge_game_id = %s)"
+                                cursor.execute(sql, (result['ranbat_score']+p_points, current_semester, players[p_Handle.lower()], challongeID))
                             else:
                                 # Add points into the database for player and game
-                                sql = "INSERT INTO results (semester_ID, player_ID, game_ID, ranbat_score) VALUES ((SELECT semester_ID FROM semesters WHERE semesterNum = %s), (SELECT player_ID FROM players WHERE player_Handle = %s), (SELECT game_ID FROM games WHERE game_Name = %s), %s)"
-                                cursor.execute(sql, (current_semester, players[p_Handle.lower()], g_Name, p_points))
+                                sql = "INSERT INTO results (semester_ID, player_ID, game_ID, ranbat_score) VALUES ((SELECT semester_ID FROM semesters WHERE semesterNum = %s), (SELECT player_ID FROM players WHERE player_Handle = %s), (SELECT game_ID FROM games WHERE challonge_game_id = %s), %s)"
+                                cursor.execute(sql, (current_semester, players[p_Handle.lower()], challongeID, p_points))
         # Close the database connection
         finally:
             conn.close()

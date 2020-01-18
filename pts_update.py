@@ -4,7 +4,7 @@ import pymysql.cursors
 import requests
 import json
 
-current_semester = '2191' # Set the current semester for fetching points and updating the database
+current_semester = '2195' # Set the current semester for fetching points and updating the database
 
 # Sets the time to only get tournaments made in the last week
 current_time = datetime.datetime.now()

@@ -18,7 +18,7 @@ def get_tour():
 
     games = [] # Sets an empty list for games to reference later
     players = {} # Sets an empty dictionary for players to reference later
-    
+
     # Opens database connection
     conn = pymysql.connect(
         host=sql_host,
@@ -29,7 +29,7 @@ def get_tour():
         charset='utf8mb4',
         autocommit=True,
         cursorclass=pymysql.cursors.DictCursor)
-    
+
     # Parameters for getting the right tournaments
     payload = {'api_key':key, 'state':'ended', 'created_after':last_saturday, 'subdomain':'ritfgc'}
 
@@ -58,9 +58,9 @@ def get_tour():
                     cursor.execute(sql)
                     for row in cursor:
                         players[row['player_Handle'].lower()] = row['player_Handle']
-                        
+
                 # Filter tournament results to ensure only the proper tournaments are being selected  
-                if 'rit fgc '+current_semester in t['name'].lower() and 'extra' not in t['name'].lower():
+                if ('rit fgc' in t['name'].lower() and str(current_semester) in t['name'].lower()) and 'extra' not in t['name'].lower():
                     # Referencing the games list to get make sure the game is in the database
                     if t['game_id'] in games:
                         challongeID = t['game_id']
@@ -68,7 +68,7 @@ def get_tour():
                         continue
                     # Get the week number
                     ranbat_num = t['name'][-2:].strip("#")
-                    
+
                     # Empty dict to store participant name and final rank
                     parts = {}
 
@@ -100,7 +100,7 @@ def get_tour():
                         # Pull the information from the dict to simplify using the info
                         p_Handle = part
                         final_rank = parts[part]
-                        
+
                         # Get player points from the points dict using the player's final rank as a key
                         p_points = points[final_rank]
 
@@ -123,7 +123,7 @@ def get_tour():
                                 # Add placement for a new tournament for an existing player
                                 sql = "UPDATE placements SET tour_" + ranbat_num + " = %s WHERE placement_ID = (SELECT placement_ID FROM placements WHERE semester_ID = (SELECT semester_ID FROM semesters WHERE semesterNum = %s) AND game_ID = (SELECT game_ID FROM games WHERE challonge_game_id = %s) AND player_ID = (SELECT player_ID FROM players WHERE player_Handle = %s))"
                                 cursor.execute(sql, (final_rank, current_semester, challongeID, players[p_Handle.lower()]))
-                                
+
                                 # Add new points to existing point total for player
                                 sql = "UPDATE results SET ranbat_score = %s WHERE placement_ID = (SELECT placement_ID FROM placements WHERE semester_ID = (SELECT semester_ID FROM semesters WHERE semesterNum = %s) AND game_ID = (SELECT game_ID FROM games WHERE challonge_game_id = %s) AND player_ID = (SELECT player_ID FROM players WHERE player_Handle = %s))"
                                 cursor.execute(sql, (result['ranbat_score']+p_points, current_semester, challongeID, players[p_Handle.lower()]))
@@ -131,7 +131,7 @@ def get_tour():
                                 # Add a player into the system
                                 sql = "INSERT INTO placements (semester_ID, game_ID, player_ID, tour_" + ranbat_num + ") VALUES ((SELECT semester_ID FROM semesters WHERE semesterNum = %s), (SELECT game_ID FROM games WHERE challonge_game_id = %s), (SELECT player_ID FROM players WHERE player_Handle = %s), %s)"
                                 cursor.execute(sql, (current_semester, challongeID, players[p_Handle.lower()], final_rank))
-                                
+
                                 # Add points into the database for player and game
                                 sql = "INSERT INTO results (placement_ID, ranbat_score) VALUES ((SELECT placement_ID FROM placements WHERE semester_ID = (SELECT semester_ID FROM semesters WHERE semesterNum = %s) AND game_ID = (SELECT game_ID FROM games WHERE challonge_game_id = %s) AND player_ID = (SELECT player_ID FROM players WHERE player_Handle = %s)), %s)"
                                 cursor.execute(sql, (current_semester, challongeID, players[p_Handle.lower()], p_points))

@@ -60,7 +60,6 @@ def get_tour():
                     cursor.execute(sql)
                     for row in cursor:
                         players[pattern.sub('', row['player_Handle'].lower())] = row['player_Handle']
-                    print(players)
                 # Filter tournament results to ensure only the proper tournaments are being selected  
                 if ('rit fgc' in t['name'].lower() and str(current_semester) in t['name'].lower()) and 'extra' not in t['name'].lower():
                     # Referencing the games list to get make sure the game is in the database

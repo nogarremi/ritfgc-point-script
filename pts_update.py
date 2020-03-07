@@ -6,7 +6,7 @@ import json
 import re
 
 current_semester = '2195' # Set the current semester for fetching points and updating the database
-pattern = re.compile('[\W_]+')
+pattern = re.compile('[\W_]+') # Regex to remove special characters
 
 # Sets the time to only get tournaments made in the last week
 current_time = datetime.datetime.now()
@@ -54,7 +54,7 @@ def get_tour():
                 t = t['tournament']
 
                 # Get all the current players from the database to remove the possibility for duplicates
-                # Now it puts the players into a dictionary to remove the possibility for diffrent capitalization
+                # Now it puts the players into a dictionary to remove the possibility for human errors by removing special characters
                 with conn.cursor() as cursor:
                     sql = 'SELECT player_Handle FROM players'
                     cursor.execute(sql)
@@ -101,7 +101,7 @@ def get_tour():
                     for part in parts:
                         # Pull the information from the dict to simplify using the info
                         p_Handle = part
-                        handle_stripped = pattern.sub('', p_Handle.lower())
+                        handle_stripped = pattern.sub('', p_Handle.lower()) # Stripped name for ease of access later
                         final_rank = parts[part]
 
                         # Get player points from the points dict using the player's final rank as a key

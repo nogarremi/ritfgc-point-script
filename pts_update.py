@@ -82,7 +82,7 @@ def get_tour():
                     if '200' in str(x.status_code):
                         # Loop through all participants
                         for p in x.json():
-                            # The structure of the json is weird and tournament data is not at the root
+                            # The structure of the json is weird and participant data is not at the root
                             # Set the data root as the variable
                             p = p['participant']
 
@@ -137,11 +137,11 @@ def get_tour():
         print(r)
  
 def calc_points(places):
-    # Create a dictionary from the array
+    # Create a dictionary from the array since
+    # dictionaries cannot contain duplicate keys
     points = dict.fromkeys(places)
-
-    # Dictionaries cannot contain duplicate keys
-    # Store the unique values to have a way to loop
+    
+    # Store the unique values to loop over
     places = list(points)
 
     # Loop to set up a dictionary based on final placements

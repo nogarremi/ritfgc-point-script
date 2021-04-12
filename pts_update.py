@@ -1,10 +1,9 @@
 import datetime
-from info import sql_host,sql_port,sql_user,sql_pw,sql_db,api_key
+from info import sql_host,sql_port,sql_user,sql_pw,sql_db,chal_user,api_key
 import pymysql.cursors
 import requests
 import json
 import re
-
 
 current_semester = '2205' # Set the current semester for fetching points and updating the database
 pattern = re.compile('[\W_]+') # Regex to remove special characters
@@ -34,10 +33,10 @@ def get_tour():
         cursorclass=pymysql.cursors.DictCursor)
 
     # Parameters for getting the right tournaments
-    payload = {'api_key':key, 'state':'ended', 'created_after':last_saturday, 'subdomain':'ritfgc'}
+    payload = {'state':'ended', 'created_after':last_saturday, 'subdomain':'ritfgc'}
 
     # Send a HTTP GET request to poll the Challonge API for all the tournaments within the timeframe
-    r = requests.get(base_url + "tournaments.json", params=payload)
+    r = requests.get(base_url + "tournaments.json", params=payload, headers={"User-Agent":"RITFGC"}, auth=(chal_user, api_key))
     # Check to make sure there is a successful response
     if '200' in str(r.status_code):
         # Try because of database connection
@@ -78,7 +77,7 @@ def get_tour():
                     places = []
 
                     # Send an HTTP GET request to poll for all the participant for a tournament
-                    x = requests.get(base_url + "tournaments/" + str(t['id']) + "/participants.json", params={'api_key':key})
+                    x = requests.get(base_url + "tournaments/" + str(t['id']) + "/participants.json", headers={"User-Agent":"RITFGC"}, auth=(chal_user, api_key))
                     # Check to make sure there is a successful response
                     if '200' in str(x.status_code):
                         # Loop through all participants

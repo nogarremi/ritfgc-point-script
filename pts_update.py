@@ -5,7 +5,7 @@ import requests
 import json
 import re
 
-current_semester = '2221' # Set the current semester for fetching points and updating the database
+current_semester = '2225' # Set the current semester for fetching points and updating the database
 pattern = re.compile('[\W_]+') # Regex to remove special characters
 
 # Sets the time to only get tournaments made in the last week
